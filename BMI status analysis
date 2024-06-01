@@ -1,0 +1,45 @@
+##BMI筛选
+##以data_background3为例继续筛选
+
+##首先补充协变量BMI的分类
+##导入biomarker表
+data_Biomarker<-read.csv("D:/CHARLS数据库/CHARLS2015/2015数据csv版本/Biomarker.csv")
+#去除体重na值和未被测量的值
+data_Biomarker<-data_Biomarker[!is.na(data_Biomarker$ql002),]
+data_Biomarker<-data_Biomarker[data_Biomarker$ql002!=993,]
+
+#去除身高na值和未被测量值
+data_Biomarker<-data_Biomarker[!is.na(data_Biomarker$qi002),]
+data_Biomarker<-data_Biomarker[data_Biomarker$qi002!=993,]
+
+# 筛选身高在100cm到200cm之间的人
+library(dplyr)
+data_Biomarker1<- data_Biomarker %>%
+  filter(qi002 >= 100 & qi002 <= 200)
+
+#计算个体的BMI值并分为四类
+library(dplyr)
+data_Biomarker1<- data_Biomarker1 %>%
+  mutate(
+    qi002 = qi002 / 100,  # 将身高从厘米转换为米
+    BMI = ql002 / (qi002 ^ 2)  # 计算BMI
+  )
+
+# 添加BMI分类到数据框
+library(dplyr)
+data_Biomarker1 <- data_Biomarker1 %>%
+  mutate(
+    BMI_category = case_when(
+      BMI < 18.5 ~ "underweight",
+      BMI >= 18.5 & BMI <= 23.9 ~ "normal weight",
+      BMI >= 24 & BMI <= 27.9 ~ "overweight",
+      BMI >= 28 ~ "obese",
+      TRUE ~ "undefined"  # 用于未符合以上任何条件的情况
+    )
+  )
+##删除未符合以上定义的变量
+data_Biomarker1<-data_Biomarker1[data_Biomarker1$BMI_category!="undefined",]
+
+
+
+
