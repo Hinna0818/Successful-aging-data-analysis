@@ -1,0 +1,228 @@
+###筛选患高血压的人(以col_data1为例)
+# 创建新变量 hypertension(1为患病，2为未患病)
+col_data1$zda007_1_[is.na(col_data1$zda007_1_)]<-0
+col_data1$zda008_1_[is.na(col_data1$zda008_1_)]<-0
+col_data1$hypertension <- with(col_data1, ifelse(zda007_1_ == 1 | (zda007_1_ == 0 & zda008_1_ == 1), 1, 2))
+
+#创建新变量 abnormal_blood_lipid
+library(dplyr)
+col_data1$zda007_2_[is.na(col_data1$zda007_2_)]<-0
+col_data1 <- col_data1 %>%
+  mutate(abnormal_blood_lipid = ifelse(zda007_2_ == 1, 1, 2))
+
+##创建变量 liver_disease
+col_data1$zda007_6_[is.na(col_data1$zda007_6_)]<-0
+col_data1 <- col_data1 %>%
+  mutate(liver_disease = ifelse(zda007_6_ == 1, 1, 2))
+
+
+##创建变量 kidney_disease
+col_data1$zda007_9_[is.na(col_data1$zda007_9_)]<-0
+col_data1 <- col_data1 %>%
+  mutate(kidney_disease = ifelse(zda007_9_ == 1, 1, 2))
+
+##创建变量 digestive_disease
+col_data1$zda007_10_[is.na(col_data1$zda007_10_)]<-0
+col_data1 <- col_data1 %>%
+  mutate(digestive_disease = ifelse(zda007_10_ == 1, 1, 2))
+
+
+##创建变量 Arthritis
+col_data1$zda007_13_[is.na(col_data1$zda007_13_)]<-0
+col_data1 <- col_data1 %>%
+  mutate(Arthritis = ifelse(zda007_13_ == 1, 1, 2))
+
+
+##创建变量 Asthma
+col_data1$zda007_14_[is.na(col_data1$zda007_14_)]<-0
+col_data1 <- col_data1 %>%
+  mutate(Asthma = ifelse(zda007_14_ == 1, 1, 2))
+
+##转化为类别
+col_data1$hypertension<-factor(col_data1$hypertension)
+col_data1$abnormal_blood_lipid<-factor(col_data1$abnormal_blood_lipid)
+col_data1$liver_disease<-factor(col_data1$liver_disease)
+col_data1$digestive_disease<-factor(col_data1$digestive_disease)
+col_data1$kidney_disease<-factor(col_data1$kidney_disease)
+col_data1$Arthritis<-factor(col_data1$Arthritis)
+col_data1$Asthma<-factor(col_data1$Asthma)
+col_data1$xrgender<-factor(col_data1$xrgender)
+
+
+
+colnames(col_data1)[which(colnames(col_data1) == "bb001_w3_2")] <- "community_type"
+# 将 BMI_category 的字符串映射为数字，并转换为因子类型
+col_data1$BMI_category <- factor(col_data1$BMI_category, 
+                                 levels = c("underweight", "normal weight", "overweight", "obese"),
+                                 labels = c(1, 2, 3, 4))
+##把所有因子变量统一为1（有），2（没有）
+if(is.factor(col_data1$major_disease)) {
+  col_data1$major_disease <- as.numeric(as.character(col_data1$major_disease))
+}
+
+# 然后替换 0 为 2
+col_data1$major_disease[col_data1$major_disease == 0] <- 2
+col_data1$major_disease<-factor(col_data1$major_disease)
+##替换
+col_data1$disability[col_data1$disability == 0] <- 2
+col_data1$disability<-factor(col_data1$disability)
+
+col_data1$high_cognitive[col_data1$high_cognitive == 0] <- 2
+col_data1$high_cognitive<-factor(col_data1$high_cognitive)
+
+col_data1$depression_status[col_data1$depression_status == 0] <- 2
+col_data1$depression_status<-factor(col_data1$depression_status)
+
+col_data1$social_participation[col_data1$social_participation == 0] <- 2
+col_data1$social_participation<-factor(col_data1$social_participation)
+
+col_data1$successful_aging[col_data1$successful_aging == 0] <- 2
+col_data1$successful_aging<-factor(col_data1$successful_aging)
+
+col_data1$hypertension[col_data1$hypertension == 0] <- 2
+col_data1$hypertension<-factor(col_data1$hypertension)
+
+##将目标变量筛选得到一个关于疾病的数据框
+disease_data <- subset(col_data1,  select = c(ID, successful_aging, xrgender, age, hypertension,abnormal_blood_lipid,
+                                              liver_disease,digestive_disease,kidney_disease,Arthritis,Asthma,`marital status`, 
+                                       community_type, BMI,smoking, alcohol))
+
+colnames(disease_data)[colnames(disease_data)=="marital status"]<-"marital_status"
+##写出数据框
+disease_information<-write.csv(disease_data,file = "C:/大二/课题/disease_information.csv")
+
+##########各类疾病的baseline
+library(tableone)
+# 创建变量列表
+vars <- c("successful_aging", "xrgender", "age", "hypertension", "abnormal_blood_lipid",
+          "liver_disease", "digestive_disease", "kidney_disease", "Arthritis", "Asthma", 
+          "marital status", "community_type", "BMI", "smoking", "alcohol")
+
+# 创建分层变量（例如：按性别分层）
+stratify <- "successful_aging"
+
+# 创建TableOne对象
+disease_table1 <- CreateTableOne(vars = vars, strata = stratify, data = disease_data, factorVars = c("successful_aging", "hypertension", "abnormal_blood_lipid",
+                                                                                             "liver_disease", "digestive_disease", "kidney_disease", "Arthritis", 
+                                                                                             "Asthma", "marital status", "community_type", "smoking", "alcohol"))
+
+# 打印TableOne表格
+print(disease_table1, showAllLevels = TRUE)
+
+##导出baseline
+tab1Mat <- print(disease_table1, showAllLevels=TRUE , quote = FALSE, noSpaces = TRUE, printToggle = FALSE)
+write.csv(tab1Mat, file = "C:/大二/课题/disease_baseline.csv")
+
+
+###psm匹配得分
+library(MatchIt)
+# 创建匹配公式
+formula <- successful_aging ~ age + hypertension + abnormal_blood_lipid + Arthritis + Asthma + community_type + BMI
+
+# 执行倾向评分匹配
+match.it <- matchit(formula, data = disease_data, method = "nearest")
+
+# 查看匹配结果
+summary(match.it)
+
+# 提取匹配后的数据
+matched_data <- match.data(match.it)
+
+# 检查匹配效果
+summary(match.it)
+
+library(cobalt)
+# 使用bal.tab函数检查平衡，包括p值
+# 使用 cobalt 包中的 bal.tab 函数查看平衡性
+balance_table <- bal.tab(match.it, un = TRUE, m.threshold = 0.05)
+
+# 查看平衡性表
+print(balance_table)
+
+
+###匹配完后，没问题，直接纳入变量作逻辑回归
+library(rms)
+hypertenison_successfulaging <- glm(successful_aging ~ hypertension + xrgender + age + marital_status+
+                                    community_type+BMI+smoking+alcohol,
+                             family = binomial(), data = disease_data)
+
+
+abnormal_blood_lipid_successfulaging <- glm(successful_aging ~ abnormal_blood_lipid + xrgender + age + marital_status+
+                                      community_type+BMI+smoking+alcohol,
+                                    family = binomial(), data = disease_data)
+
+
+liver_disease_successfulaging <- glm(successful_aging ~ liver_disease + xrgender + age + marital_status+
+                                              community_type+BMI+smoking+alcohol,
+                                            family = binomial(), data = disease_data)
+
+
+
+digestive_disease_successfulaging <- glm(successful_aging ~ digestive_disease + xrgender + age + marital_status+
+                                       community_type+BMI+smoking+alcohol,
+                                     family = binomial(), data = disease_data)
+
+
+kidney_disease_successfulaging <- glm(successful_aging ~ kidney_disease + xrgender + age + marital_status+
+                                           community_type+BMI+smoking+alcohol,
+                                         family = binomial(), data = disease_data)
+
+
+Arthritis_successfulaging <- glm(successful_aging ~ Arthritis + xrgender + age + marital_status+
+                                        community_type+BMI+smoking+alcohol,
+                                      family = binomial(), data = disease_data)
+
+
+Asthma_successfulaging <- glm(successful_aging ~ Asthma + xrgender + age + marital_status+
+                                   community_type+BMI+smoking+alcohol,
+                                 family = binomial(), data = disease_data)
+
+
+combined_successfulaging<- glm(successful_aging ~ hypertension + abnormal_blood_lipid + liver_disease
+                               + digestive_disease + kidney_disease + Arthritis + Asthma + xrgender + age + marital_status+
+                                 community_type+BMI+smoking+alcohol,
+                               family = binomial(), data = disease_data)
+
+
+sole_successfulaging <- glm(successful_aging ~ hypertension + xrgender + age + marital_status+
+                                      community_type+BMI+smoking+alcohol,
+                                    family = binomial(), data = disease_data)
+
+
+
+
+
+
+
+sleep_data <- subset(col_data1, !is.na(`da050`), 
+                            select = c(ID, successful_aging, xrgender, age,da050,major_disease,disability,high_cognitive,
+                                       depression_status,social_participation,`marital status`, 
+                                       community_type, BMI, BMI_category,smoking, alcohol))
+
+
+
+
+# 计算四分位数
+quantiles1 <- quantile(sleep_data$da050, probs = c(0, 0.5, 0.7, 0.9, 1), na.rm = TRUE)
+# 切分变量并直接转换为因子类型
+sleep_data$sleep_catagory <- factor(cut(sleep_data$da050,
+                                                       breaks = quantiles1,
+                                                       include.lowest = TRUE,
+                                                       labels = c(1, 2, 3, 4)))
+
+sleep_successfulaging <- glm(successful_aging ~ sleep_catagory , 
+                            family = binomial(), data = sleep_data)
+
+
+
+sleep_successfulaging1 <- glm(successful_aging ~ sleep_catagory  + xrgender + age + `marital status` + community_type + BMI + smoking + alcohol, 
+                            family = binomial(), data = sleep_data)
+
+
+
+
+
+
+
+
+
