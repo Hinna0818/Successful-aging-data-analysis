@@ -1,0 +1,163 @@
+##成功老龄化的变量筛选
+
+#首先是：1.无重大疾病（要求没有癌症、
+#慢性肺部疾病、糖尿病、心脏病和中风则归类为没有主要疾病的患者)
+data_healthcare1<-data_healthcare
+##对高血压人群去除na值
+data_healthcare1<-data_healthcare1[!is.na(data_healthcare1$da007_w2_1_1_),]
+
+##筛选出没有五个重大疾病的个体
+# 筛选出没有患五种病的人
+# 使用 mutate 和 replace_na 将指定列中的 NA 值替换为 0
+install.packages("tidyr")
+library(tidyr)
+illness_data <- data_healthcare1 %>%
+  mutate(
+    zda007_3_ = replace_na(zda007_3_, 0),
+    zda007_4_ = replace_na(zda007_4_, 0),
+    zda007_5_ = replace_na(zda007_5_, 0),
+    zda007_7_ = replace_na(zda007_7_, 0),
+    zda007_8_ = replace_na(zda007_8_, 0)
+  )
+
+
+##修改患高血压的人的信息
+
+
+##再把未患高血压的人群设为0
+illness_data$zda007_1_[is.na(illness_data$zda007_1_)] <- 0
+##设置是否患高血压的变量
+illness_data$zda008_1_[is.na(illness_data$zda008_1_)]<-0
+illness_data$hypertension <- with(illness_data, ifelse(zda007_1_ == 1 | (zda007_1_ == 0 & zda008_1_ == 1), 1, 0))
+cleaned_illness_data<-illness_data
+# 创建新的变量，用于标记是否有重大疾病
+cleaned_illness_data <- cleaned_illness_data %>%
+  mutate(
+    major_disease = if_else(
+      zda007_3_ == 0 & zda007_4_ == 0 & zda007_5_ == 0 & zda007_7_ == 0 & zda007_8_ == 0,
+      0, 1
+    )
+  )
+
+###2.第二个变量（有无残疾）
+##认为ADL=0的个体才算无残疾
+cleaned_ADL_data<-cleaned_illness_data
+
+
+# 将 NA 值替换为 0
+cleaned_ADL_data[, c("db010", "db011", "db012", "db013", "db014", "db015")][is.na(cleaned_ADL_data[, c("db010", "db011", "db012", "db013", "db014", "db015")])] <- 0
+
+library(dplyr)
+
+# 创建新的 disability 列，并根据条件进行标记
+cleaned_ADL_data <- cleaned_ADL_data %>%
+  mutate(disability = ifelse(db010 %in% c(1, 2) & 
+                               db011 %in% c(1, 2) & 
+                               db012 %in% c(1, 2) & 
+                               db013 %in% c(1, 2) & 
+                               db014 %in% c(1, 2) & 
+                               db015 %in% c(1, 2), 0, 1))
+
+####3.第三个变量：高认知功能
+cleaned_cognitive_data<-cleaned_ADL_data
+##先对100连续减7（计算能力）分析
+# 将这五列中的 NA 值替换为 0
+cleaned_cognitive_data[, c("dc019", "dc020", "dc021", "dc022", "dc023")][is.na(cleaned_cognitive_data[, c("dc019", "dc020", "dc021", "dc022", "dc023")])] <- 0
+
+# 计算预期答案
+expected_answers <- seq(93, 65, by = -7)
+
+# 计算每个个体的计分
+cleaned_cognitive_data$calculation_score <- rowSums(cleaned_cognitive_data[, c("dc019", "dc020", "dc021", "dc022", "dc023")] == expected_answers)
+
+
+##对星期月份等正确命名
+# 将这几列中的 NA 值替换为 0
+cleaned_cognitive_data[, c("dc001s1", "dc001s2", "dc001s3", "dc002", "dc003")][is.na(cleaned_cognitive_data[, c("dc001s1", "dc001s2", "dc001s3", "dc002", "dc003")])] <- 0
+
+# 计算得分
+cleaned_cognitive_data$memory_score <- rowSums(cleaned_cognitive_data[, c("dc001s1", "dc001s2", "dc001s3")]) %in% c(1, 2, 3) +
+  as.integer(cleaned_cognitive_data$dc002 == 1) +
+  as.integer(cleaned_cognitive_data$dc003 == 1)
+
+
+###绘制图片
+# 将 dc025 列中的 NA 值替换为 0
+cleaned_cognitive_data$dc025[is.na(cleaned_cognitive_data$dc025)] <- 0
+
+# 计算得分
+cleaned_cognitive_data$drawing_score <- as.integer(cleaned_cognitive_data$dc025 == 1)
+
+
+##最后计算认知功能的总得分，高于整体中位数得分的纳入组内
+# 计算总得分 cognitive_score
+cleaned_cognitive_data$cognitive_score <- cleaned_cognitive_data$calculation_score + 
+  cleaned_cognitive_data$memory_score + 
+  cleaned_cognitive_data$drawing_score
+
+# 计算 cognitive_score 的中位数
+median_score <- median(cleaned_cognitive_data$cognitive_score, na.rm = TRUE)
+
+# 将大于等于中位数的个体标记为 1，其他的标记为 0
+cleaned_cognitive_data$high_cognitive <- as.integer(cleaned_cognitive_data$cognitive_score >=median_score)
+
+###4.筛选抑郁状态变量
+cleaned_depression_data<-cleaned_cognitive_data
+
+# 对 dc009 到 dc018 列中的 NA 值进行均值填充并截尾
+cleaned_depression_data[, c("dc009", "dc010", "dc011", "dc012", "dc013", "dc014", "dc015", "dc016", "dc017", "dc018")] <- 
+  lapply(cleaned_depression_data[, c("dc009", "dc010", "dc011", "dc012", "dc013", "dc014", "dc015", "dc016", "dc017", "dc018")], 
+         function(x) {ifelse(is.na(x), trunc(mean(x, na.rm = TRUE)), x)})
+
+# 对 dc013 和 dc016 进行特殊处理，得分是用 4 减去数据值
+cleaned_depression_data$dc013_score <- 4 - cleaned_depression_data$dc013
+cleaned_depression_data$dc016_score <- 4 - cleaned_depression_data$dc016
+
+# 对剩下的列进行处理，得分比数据值少 1
+cleaned_depression_data$dc009_score <- cleaned_depression_data$dc009 - 1
+cleaned_depression_data$dc010_score <- cleaned_depression_data$dc010 - 1
+cleaned_depression_data$dc011_score <- cleaned_depression_data$dc011 - 1
+cleaned_depression_data$dc012_score <- cleaned_depression_data$dc012 - 1
+cleaned_depression_data$dc014_score <- cleaned_depression_data$dc014 - 1
+cleaned_depression_data$dc015_score <- cleaned_depression_data$dc015 - 1
+cleaned_depression_data$dc017_score <- cleaned_depression_data$dc017 - 1
+cleaned_depression_data$dc018_score <- cleaned_depression_data$dc018 - 1
+
+# 计算每行中这些得分列的总和
+cleaned_depression_data$depression_score <- rowSums(cleaned_depression_data[, c("dc009_score", "dc010_score", "dc011_score", 
+                                                                                "dc012_score", "dc013_score", "dc014_score", 
+                                                                                "dc015_score", "dc016_score", "dc017_score", 
+                                                                                "dc018_score")])
+# 将 depression score 小于等于 10 的记为 0，保存在 depression_status 里面
+cleaned_depression_data$depression_status <- ifelse(cleaned_depression_data$depression_score <= 10, 0, 1)
+
+###5.积极社会参与筛选
+cleaned_social_data<-cleaned_depression_data
+# 将 da056s12 列中值为 12 的个体的 social_status 设置为 0
+cleaned_social_data$social_participation <- ifelse(cleaned_social_data$da056s12 == 12, 0, 1)
+
+# 将 NA 值设置为 1
+cleaned_social_data$social_participation[is.na(cleaned_social_data$social_participation)] <- 1
+
+##计算满足以上五个条件的个体数目
+number<-sum(cleaned_social_data$major_disease==0&cleaned_social_data$disability==0&
+            cleaned_social_data$high_cognitive==1&cleaned_social_data$depression_status==0&
+              cleaned_social_data$social_participation==1)
+
+# 创建一个新的变量 successful_aging
+cleaned_social_data$successful_aging <- ifelse(cleaned_social_data$major_disease == 0 &
+                                                 cleaned_social_data$disability == 0 &
+                                                 cleaned_social_data$high_cognitive == 1 &
+                                                 cleaned_social_data$depression_status == 0 &
+                                                 cleaned_social_data$social_participation == 1, 1, 0)
+
+##截取一个有用的老龄化变量表
+# 提取指定列并创建一个新的数据框
+
+successful_aging_data <- cleaned_social_data[, c("ID", "xrgender", "xrtype","successful_aging", "major_disease", 
+                                          "disability", "high_cognitive", 
+                                         "depression_status", "social_participation")]
+#去除性别不存在的列
+successful_aging_data<-successful_aging_data[!is.na(successful_aging_data$xrgender),]
+
+write.csv(successful_aging_data, file = "D:/CHARLS数据库/CHARLS2015/washed_data/successful_aging_data.csv",row.names = FALSE)
