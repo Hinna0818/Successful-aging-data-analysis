@@ -1,0 +1,98 @@
+##导入health care and function数据
+data_healthcare<-read.csv("D:/CHARLS数据库/CHARLS2015/2015数据csv版本/Health_Status_and_Functioning.csv")
+
+##导入人口基本信息
+data_background<-read.csv("D:/CHARLS数据库/CHARLS2015/2015数据csv版本/Demographic_Background.csv")
+
+##解决回访者的问题
+data_background$xrtype[data_background$xrtype=="1 NEWIW New Interview"]<-1
+data_background$xrtype[data_background$xrtype=="2 REIW Followup Interview"]<-2
+data_background<-data_background[data_background$xrtype!="",]
+
+
+##去除健康信息中xrtype不存在的值
+data_healthcare<-data_healthcare[!is.na(data_healthcare$xrtype),]
+
+
+##计算年龄(分身份证上的信息是否正确)
+data_background<-data_background[data_background$ba002!="",]##去除没有的信息
+##计算年龄
+data_background$age <- ifelse(
+  data_background$ba002 == "1 The Same with Hukou or ID Card",
+  2015 - data_background$ba004_w3_1,
+  2015-data_background$ba002_1
+)
+##去除年龄中有NA值的数据
+data_background<-data_background[!is.na(data_background$age),]
+##筛选出年龄大于等于60岁的个体
+data_background1<-subset(data_background,data_background$age>=60)
+
+##筛选婚姻状态
+data_background1<-data_background1[data_background1$be001!="",]##去除空数据
+##合并婚姻状态，最后分为5类
+#已婚状态设为1
+data_background1$be001[data_background1$be001 %in% c("2 Married But Not Living with Spouse Temporarily for Reasons Such as Work", 
+                                                     "1 Married with Spouse Present")] <- 1
+
+#同居和离婚设为2
+data_background1$be001[data_background1$be001 %in% c("4 Divorced" ,"7 Cohabitated" )] <- 2
+#分居设为3
+data_background1$be001[data_background1$be001=="3 Separated"]<-3
+#丧偶和从未结婚分别设为4和5
+data_background1$be001[data_background1$be001=="5 Widowed"]<-4
+data_background1$be001[data_background1$be001=="6 Never Married"]<-5
+##打印各婚姻类别的人数
+for (i in 1:5) {
+  print(sum(data_background1$be001==i))
+  
+}
+##重命名be001列名并将婚姻类别转化为因子
+colnames(data_background1)[colnames(data_background1) == "be001"] <- "marital status"
+data_background1$`marital status`<-factor(data_background1$`marital status`)
+
+##吸烟与饮酒的筛选
+#去除吸烟史中的缺失值并将是否吸烟转化为因子
+data_healthcare<-data_healthcare[!is.na(data_healthcare$da059),]
+colnames(data_healthcare)[colnames(data_healthcare) == "da059"] <- "smoking"
+data_healthcare$smoking<-factor(data_healthcare$smoking)
+
+##去除饮酒情况的缺失值
+data_healthcare<-data_healthcare[!is.na(data_healthcare$da067),]
+##将饮酒情况的列名改为alcohol
+colnames(data_healthcare)[colnames(data_healthcare) == "da067"] <- "alcohol"
+##数据类型转化为因子
+data_healthcare$alcohol<-factor(data_healthcare$alcohol)
+
+##去除background中新访者留下绝大多数的回访者
+data_background2<-data_background1[data_background1$xrtype==2,]
+data_background1<-data_background1[data_background1$xrtype==2,]
+##去除健康信息中的新访者
+data_healthcare<-data_healthcare[data_healthcare$xrtype==2,]
+
+##居住地信息（分类为城市1和非城市2）
+#去除没有居住信息的个体
+data_background2<-data_background2[data_background2$bb001_w3_2!="",]
+#分类
+data_background2$bb001_w3_2[data_background2$bb001_w3_2 %in% c("1 Main City Zone", 
+                                                               "2 Combination Zone Between Urban and Rural Areas")] <- 1
+
+data_background2$bb001_w3_2[data_background2$bb001_w3_2 %in% c("3 The Town Center", "4 ZhenXiang Area","5 Special Area","6 Township Central","7 Village")] <- 2
+
+##转为因子
+data_background2$bb001_w3_2<-factor(data_background2$bb001_w3_2)
+
+###对教育水平分析，首先要导入2013年的数据
+data_background_2013<-read.csv("D:/CHARLS数据库/CHARLS2013/Demographic_Background.csv")
+
+
+
+##去除教育水平的空值
+#data_background_2013<-data_background_2013[data_background_2013$bd001!="",]
+#data_background_2013<-data_background_2013[data_background_2013$bd001_w2_4!="",]
+
+##合并2013教育水平与大数据coldata
+#merged_educaiton_data<-merge(data_background_2013,col_data1,by="ID",all = FALSE)
+
+col_data1$xrgender<-factor(col_data1$xrgender)
+
+
