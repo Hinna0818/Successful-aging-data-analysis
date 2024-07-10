@@ -1,0 +1,237 @@
+##LASSO回归
+#加载glmnet包
+install.packages("glmnet")
+library(glmnet)
+
+##构建自变量矩阵和结果变量矩阵
+##列入逻辑回归中阳性变量
+x <- as.matrix(sapply(disease_data[, c(5, 6, 10, 11, 13, 14)], as.numeric))
+
+##列入结局变量
+y <- as.numeric(disease_data[, 2])
+
+##lasso回归
+lasso1 = glmnet(x, y, family="binomial", nlambda=100, alpha=1)
+print(lasso1)
+plot(lasso1, xvar="lambda", label=TRUE)
+summary(lasso1)
+
+
+#交叉验证并绘制可视化结果
+cv_model <- cv.glmnet(x, y, family = "binomial",alpha = 1,nfolds = 10)
+plot(cv_model)
+
+# 获取最佳 lambda 值
+best_lambda <- cv_model$lambda.min
+
+# 提取在最佳 lambda 下的系数
+lasso_coef <- coef(lasso1, s = best_lambda)
+
+# 提取系数和特征名称
+coef_matrix <- coef(lasso1, s = best_lambda)
+coefficients <- as.vector(coef_matrix)
+feature_names <- rownames(coef_matrix)
+
+# 仅保留非零系数
+nonzero_indices <- which(coefficients != 0)
+nonzero_coefficients <- coefficients[nonzero_indices]
+nonzero_feature_names <- feature_names[nonzero_indices]
+
+# 创建包含系数的 data frame
+coef_df <- data.frame(
+  Feature = nonzero_feature_names,
+  Coefficient = round(nonzero_coefficients,2)
+)
+
+# 将 data frame 导出为 CSV 文件
+write.csv(coef_df, file="C:/大二/课题/lasso_coefficients.csv", row.names = FALSE)
+
+####################
+
+##构建风险预测模型
+install.packages("pROC")
+library(pROC)
+
+##从lasso回归里挑选显著变量再次进行逻辑回归
+logit<-glm(successful_aging ~ hypertension + abnormal_blood_lipid + 
+              Arthritis + Asthma + community_type + BMI,data = disease_data, family = binomial(link ="logit"))
+
+##建立预测
+fitted.prob<-predict(logit, newdata = disease_data, type = "response")
+disease_data$pred<-logit$fitted.values
+
+##建立变量与预测的ROC关系，绘图
+
+##成功老龄化
+roc_multivar_0<-roc(disease_data$successful_aging,disease_data[,"pred"])
+plot.roc(roc_multivar_0,col="red")
+
+
+plot(roc_multivar_0, 
+     print.auc=TRUE, # 图像上输出AUC的值
+     print.auc.x=0.2, print.auc.y=0.5, # 设置AUC值坐标为（x，y）
+     #auc.polygon=TRUE, # 将ROC曲线下面积转化为多边形
+     #auc.polygon.col="#C87A8A",  # 设置ROC曲线下填充色
+     grid=c(0.5, 0.2), # 设置两轴网格线的间隔为0.5，0.2
+     grid.col=c("black", "black"),  # 设置两轴间隔线条的颜色
+     print.thres=F, # 图像上输出最佳截断值
+     main="ROC Curves",  # 添加图形标题
+     col="navy",    # 设置ROC曲线颜色
+     legacy.axes=TRUE)
+
+legend(0.6, 0.4,  # 图例位置x，y
+       bty = "n",   # 图例样式
+       legend=c("Logistic Model"), # 添加图例分组
+       col=c("blue"),  # 颜色跟前面一致
+       lwd=1.5)
+
+
+####################################
+##以上都是前面的回归模型的准备，以下才是Nomo图的构建
+##绘制诺莫图
+
+##保存lasso中的阳性变量到新的数据框中
+disease_data1<-subset(disease_data,select = c("successful_aging","hypertension","abnormal_blood_lipid","Arthritis",
+                                              "Asthma","age","community_type","BMI"))
+
+##修改标签名
+install.packages("Hmisc")
+library(Hmisc)
+
+disease_data1$Hypertension<-factor(disease_data1$Hypertension,levels = c(1,2),labels = c("Yes","No"))
+disease_data1$Dyslipidemia<-factor(disease_data1$abnormal_blood_lipid,levels = c(1,2),labels = c("Yes","No"))
+disease_data1$Arthritis<-factor(disease_data1$Arthritis,levels = c(1,2),labels = c("Yes","No"))
+disease_data1$Asthma<-factor(disease_data1$Asthma,levels = c(1,2),labels = c("Yes","No"))
+disease_data1$Community<-factor(disease_data1$community_type,levels = c(1,2),labels = c("urban","rural"))
+disease_data1$Successful_Aging<-factor(disease_data1$successful_aging,levels = c(1,2),labels = c("Yes","No"))
+
+colnames(disease_data1)[colnames(disease_data1)=="abnormal_blood_lipid"]<-"Dyslipidemia"
+colnames(disease_data1)[colnames(disease_data1)=="community_type"]<-"community"
+colnames(disease_data1)[colnames(disease_data1)=="hypertension"]<-"Hypertension"
+colnames(disease_data1)[colnames(disease_data1)=="community"]<-"Community"
+
+label(disease_data1$Hypertension)<-"Hypertension"
+disease_data1$Hypertension<-factor(disease_data1$Hypertension)
+label(disease_data1$abnormal_blood_lipid)<-"Dyslipidemia"
+label(disease_data1$Arthritis)<-"Arthritis"
+label(disease_data1$Asthma)<-"Asthma"
+label(disease_data1$community)<-"Community"
+label(disease_data1$successful_aging)<-"successful_aging"
+###开始绘制诺曼图
+
+library(rms)
+#dev.new()
+dd <- datadist(disease_data1)
+options(datadist="dd")
+fit1 <- lrm(successful_aging ~ Hypertension + Dyslipidemia + 
+              Arthritis + Asthma + BMI+Community, 
+            data=disease_data1,x=T,y=T)
+
+
+nom1 <- nomogram(fit1, fun=plogis,
+                 fun.at=c(0.001,0.1,0.25,0.5,0.75,0.9,0.99),
+                 lp=T, # 是否显示线性概率
+                 funlabel="Risk of Unsuccessful Aging",
+                 vnames=c("labels","names")) 
+pdf(file="C:/大二/课题/Nomo2.pdf", height = 10, width = 10)
+#par(bg = "#F5F5F5") #将画布背景设置颜色，也可以不设置，纯看个人喜好
+plot(nom1, 
+     #lplabel="Risk Stratification",
+     col.grid = c("grey","#C6E2FF"))
+
+# 调整条带位置
+rect(0.26, 0.28, 0.5, 0.3, col = "#4E6691") # 添加彩色条带 条带颜色可自行修改
+rect(0.5, 0.28, 0.7, 0.3, col = "#FBD26A")
+rect(0.7, 0.28, 0.96, 0.3, col = "#B8474D")
+
+# 调整文字位置
+text(0.4, 0.26, "Low")
+text(0.6, 0.26, "Medium")
+text(0.83, 0.26, "High")
+text(0.6, 0.32, "Risk Stratification")
+dev.off()
+
+
+#########柱状图
+# 安装并加载必要的库
+install.packages("ggplot2")
+library(ggplot2)
+
+# 示例 Lasso 回归系数数据
+coef_df <- data.frame(
+  Feature = c("Hypertension", "Dyslipidemia", "Arthritis", "Asthma","Community","BMI"),
+  Coefficient = c(-0.33, -0.41, -0.45, -1.15,0.65,-0.04)
+)
+
+
+
+
+# 创建水平柱状图，并添加变量标签名
+ggplot(coef_df, aes(x = reorder(Feature, Coefficient),
+  y = Coefficient, fill = Coefficient > 0)) +
+  geom_bar(stat = "identity", width = 0.3) +  # 调整宽度
+  scale_fill_manual(values = c("#E6846D", "#8DCDD5"), labels = c("Negative", "Positive")) +
+  labs(title = "Lasso Regression Coefficients",
+       x = "Characteristics",
+       y = "Coefficients",
+       fill = "Effect") +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),  # 移除 y 轴标签
+    plot.title = element_text(hjust = 0.5, face = "bold")  # 调整标题位置并加粗
+  ) +
+  coord_flip() +  # 翻转坐标轴，创建水平柱状图
+  geom_text(aes(label = Feature, 
+                y = ifelse(Coefficient > 0,  -0.05,  0.05)),  # 根据正负位置调整标签
+            hjust = ifelse(coef_df$Coefficient > 0, 1, 0), 
+            size = 4)+
+  geom_text(aes(label = round(Coefficient, 2)), 
+            position = position_dodge(width = 0.8), 
+            hjust = ifelse(coef_df$Coefficient > 0, 0.002, 0.99),  # 调整位置
+            size = 2.5)
+
+
+# 安装并加载必要的库
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+library(ggplot2)
+
+# 示例 Lasso 回归系数数据
+coef_df <- data.frame(
+  Feature = c("feature1", "feature2", "feature3", "feature4"),
+  Coefficient = c(0.35, -0.25, 0.15, -0.45)
+)
+
+# 创建水平柱状图，并添加变量标签名和Lasso系数
+library(grid)
+ggplot(coef_df, aes(x = reorder(Feature, Coefficient), y = Coefficient, fill = Coefficient > 0)) +
+  geom_bar(stat = "identity", width = 0.3) +  # 调整宽度
+  scale_fill_manual(
+    values = c("#E6846D", "#8DCDD5"), 
+    labels = c("Negative", "Positive")
+  ) +
+  labs(title = "Lasso Regression Correlation Coefficients",
+       x = "",
+       y = "Coefficients",
+       fill = "Effect") +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),  # 移除 y 轴标签
+    axis.title.x = element_text(face = "bold", hjust = 0.5),  # 加粗并居中 x 轴标签
+    plot.title = element_text(hjust = 0.5, face = "bold"),  # 调整标题位置并加粗
+    legend.position = "right"  # 将图例放在右侧
+  ) +
+  coord_flip() +  # 翻转坐标轴，创建水平柱状图
+  geom_text(aes(label = Feature, 
+                y = ifelse(Coefficient > 0, -0.05, 0.05)),  # 根据正负位置调整标签
+            hjust = ifelse(coef_df$Coefficient > 0, 1, 0), 
+            size = 3.5) +
+  geom_text(aes(label = round(Coefficient, 2)), 
+            position = position_dodge(width = 0.8), 
+            hjust = ifelse(coef_df$Coefficient > 0, 0.002, 0.99),  # 调整位置
+            size = 2.55) +
+  annotation_custom(
+    grob = textGrob("p < 0.05", gp = gpar(fontsize = 10, fontface = "italic")), 
+    xmin = 2, xmax = 2, ymin = 0.5, ymax = 0.5
+  )
